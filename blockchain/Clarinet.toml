@@ -1,0 +1,33 @@
+[project]
+name = 'blockchain'
+description = ''
+authors = []
+telemetry = false
+cache_dir = './.cache'
+requirements = []
+[contracts.sip-010-trait]
+path = 'contracts/sip-010-trait.clar'
+clarity_version = 2
+epoch = 'latest'
+
+[contracts.voice-transfer-v2]
+path = 'contracts/voice-transfer-v2.clar'
+clarity_version = 2
+epoch = 'latest'
+
+[contracts.mock-usdc-v2]
+path = 'contracts/mock-usdc-v2.clar'
+clarity_version = 2
+epoch = 'latest'
+[repl.analysis]
+passes = ['check_checker']
+
+[repl.analysis.check_checker]
+strict = false
+trusted_sender = false
+trusted_caller = false
+callee_filter = false
+
+[repl.remote_data]
+enabled = false
+api_url = 'https://api.hiro.so'
