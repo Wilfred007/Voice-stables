@@ -16,19 +16,37 @@ export default function Vault() {
   const [success, setSuccess] = useState<string | null>(null);
   const [tokenBalU6, setTokenBalU6] = useState<bigint>(0n);
 
-  const refresh = useCallback(async () => {
+//   const refresh = useCallback(async () => {
+//     if (!address) return;
+//     try {
+//       setLoading(true);
+//       const bal = await getVaultBalance(address);
+//       setBalanceU6(bal);
+//     } catch (e: any) {
+//       setError(e?.message ?? "Failed to load balance");
+//     } finally {
+//       setLoading(false);
+//     }
+//   }, [address]);
+
+
+const refresh = useCallback(async () => {
     if (!address) return;
     try {
       setLoading(true);
-      const bal = await getVaultBalance(address);
-      setBalanceU6(bal);
+      const [vault, token] = await Promise.all([
+        getVaultBalance(address),
+        getTokenBalance(address),
+      ]);
+      setBalanceU6(vault);
+      setTokenBalU6(token);
     } catch (e: any) {
       setError(e?.message ?? "Failed to load balance");
     } finally {
       setLoading(false);
     }
   }, [address]);
-
+  
   useEffect(() => {
     setAddress(getUserAddress());
   }, []);
