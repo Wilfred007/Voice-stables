@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic';
 
-const ManualTransfer = dynamic(() => import('@/components/ManualTransfer"), {
+// Dynamically import ManualTransfer, no SSR
+const ManualTransfer = dynamic(() => import('@/components/ManualTransfer'), {
   ssr: false,
 });
 
