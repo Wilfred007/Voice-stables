@@ -1,47 +1,85 @@
-"use client"
+"use client";
 
-import React, { useEffect, useState, useCallback } from "react";
-import { Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from "lucide-react";
-// import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint } from "@/lib/stacks";
-import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint, getTokenBalance } from "@/lib/stacks";
-const DECIMALS = 1_000_000; // mock USDC u6
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  Loader2,
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  RefreshCw,
+} from "lucide-react";
+
+import {
+  authenticate,
+  getUserAddress,
+  getVaultBalance,
+  getTokenBalance,
+  depositToVault,
+  withdrawFromVault,
+  faucetMint,
+} from "@/lib/stacks";
+
+const DECIMALS = 1_000_000; // USDC u6
 
 export default function Vault() {
   const [address, setAddress] = useState<string | null>(null);
-  const [balanceU6, setBalanceU6] = useState<bigint>(0n);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [depAmount, setDepAmount] = useState<string>("");
-  const [wdAmount, setWdAmount] = useState<string>("");
+  const [vaultBal, setVaultBal] = useState<bigint>(0n);
+  const [walletBal, setWalletBal] = useState<bigint>(0n);
+  const [loading, setLoading] = useState(false);
+
+  const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [tokenBalU6, setTokenBalU6] = useState<bigint>(0n);
 
-//   const refresh = useCallback(async () => {
-//     if (!address) return;
-//     try {
-//       setLoading(true);
-//       const bal = await getVaultBalance(address);
-//       setBalanceU6(bal);
-//     } catch (e: any) {
-//       setError(e?.message ?? "Failed to load balance");
-//     } finally {
-//       setLoading(false);
-//     }
-//   }, [address]);
+  /* ----------------------------- utils ----------------------------- */
 
+  const toBaseUnits = (val: string): number | null => {
+    const n = Number(val);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.floor(n * DECIMALS);
+  };
 
-const refresh = useCallback(async () => {
+  async function waitForStacksSuccess(txId: string) {
+    const url = `https://api.testnet.hiro.so/extended/v1/tx/${txId}`;
+
+    for (let i = 0; i < 20; i++) {
+      const r = await fetch(url);
+      const j = await r.json();
+
+      if (j.tx_status === "success") return;
+
+      if (
+        ["abort_by_response", "abort_by_post_condition", "rejected"].includes(
+          j.tx_status
+        )
+      ) {
+        throw new Error(
+          "Transaction failed: " + (j.tx_result?.repr ?? j.tx_status)
+        );
+      }
+
+      await new Promise((res) => setTimeout(res, 4000));
+    }
+
+    throw new Error("Timed out waiting for confirmation");
+  }
+
+  /* ---------------------------- balances ---------------------------- */
+
+  const refresh = useCallback(async () => {
     if (!address) return;
+    setLoading(true);
     try {
-      setLoading(true);
-      const [vault, token] = await Promise.all([
+      const [vault, wallet] = await Promise.all([
         getVaultBalance(address),
         getTokenBalance(address),
       ]);
-      setBalanceU6(vault);
-      setTokenBalU6(token);
+      setVaultBal(vault);
+      setWalletBal(wallet);
     } catch (e: any) {
-      setError(e?.message ?? "Failed to load balance");
+      setError(e?.message ?? "Failed to refresh balances");
     } finally {
       setLoading(false);
     }
@@ -52,39 +90,31 @@ const refresh = useCallback(async () => {
   }, []);
 
   useEffect(() => {
-    if (address) {
-      refresh();
-    }
+    if (address) refresh();
   }, [address, refresh]);
 
-  const toBase = (val: string): number | null => {
-    const num = parseFloat(val);
-    if (isNaN(num) || num <= 0) return null;
-    // convert to base units; ensure safe integer for Number
-    const raw = Math.floor(num * DECIMALS);
-    return raw;
-  };
+  /* ---------------------------- actions ----------------------------- */
 
-  const onDeposit = async (e: React.FormEvent) => {
+  const handleDeposit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (!address) {
-      authenticate();
-      return;
-    }
-    const raw = toBase(depAmount);
-    if (raw == null) {
-      setError("Enter a valid deposit amount");
-      return;
-    }
+
+    if (!address) return authenticate();
+
+    const raw = toBaseUnits(depositAmount);
+    if (!raw) return setError("Invalid deposit amount");
+
     try {
       setLoading(true);
-      await depositToVault(raw);
-      setSuccess("Deposit initiated. Confirm in wallet.");
-      setDepAmount("");
-      // Give some time for mempool; optimistic refresh
-      setTimeout(() => refresh(), 2000);
+      const txId = await depositToVault(raw);
+
+      setSuccess("Deposit submitted. Waiting for confirmation…");
+      await waitForStacksSuccess(txId);
+
+      await refresh();
+      setDepositAmount("");
+      setSuccess("Deposit confirmed 🎉");
     } catch (e: any) {
       setError(e?.message ?? "Deposit failed");
     } finally {
@@ -92,44 +122,26 @@ const refresh = useCallback(async () => {
     }
   };
 
-  const onFaucet = async () => {
-    setError(null);
-    setSuccess(null);
-    if (!address) {
-      authenticate();
-      return;
-    }
-    try {
-      setLoading(true);
-      await faucetMint();
-      setSuccess("Faucet called. Confirm in wallet, then refresh balance.");
-      setTimeout(() => refresh(), 2000);
-    } catch (e: any) {
-      setError(e?.message ?? "Faucet failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const onWithdraw = async (e: React.FormEvent) => {
+  const handleWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
-    if (!address) {
-      authenticate();
-      return;
-    }
-    const raw = toBase(wdAmount);
-    if (raw == null) {
-      setError("Enter a valid withdraw amount");
-      return;
-    }
+
+    if (!address) return authenticate();
+
+    const raw = toBaseUnits(withdrawAmount);
+    if (!raw) return setError("Invalid withdrawal amount");
+
     try {
       setLoading(true);
-      await withdrawFromVault(raw);
-      setSuccess("Withdrawal initiated. Confirm in wallet.");
-      setWdAmount("");
-      setTimeout(() => refresh(), 2000);
+      const txId = await withdrawFromVault(raw);
+
+      setSuccess("Withdrawal submitted. Waiting for confirmation…");
+      await waitForStacksSuccess(txId);
+
+      await refresh();
+      setWithdrawAmount("");
+      setSuccess("Withdrawal confirmed ✅");
     } catch (e: any) {
       setError(e?.message ?? "Withdraw failed");
     } finally {
@@ -137,87 +149,105 @@ const refresh = useCallback(async () => {
     }
   };
 
-  const formatted = Number(balanceU6) / DECIMALS;
+  const handleFaucet = async () => {
+    setError(null);
+    setSuccess(null);
+
+    if (!address) return authenticate();
+
+    try {
+      setLoading(true);
+      await faucetMint();
+      setSuccess("Faucet called. Refreshing…");
+      await refresh();
+    } catch (e: any) {
+      setError(e?.message ?? "Faucet failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* ------------------------------ UI ------------------------------- */
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-3xl shadow-xl border border-gray-100 mt-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-gray-900">Vault</h2>
+    <div className="max-w-2xl mx-auto mt-8 p-6 bg-white rounded-3xl shadow-xl border">
+      <header className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold">Vault</h2>
+
         {!address ? (
-          <button onClick={authenticate} className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-all shadow">
+          <button
+            onClick={authenticate}
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full"
+          >
             <Wallet size={18} /> Connect
           </button>
         ) : (
           <div className="flex items-center gap-3">
-            <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-              {address.slice(0, 6)}...{address.slice(-4)}
-            </div>
-            <button onClick={refresh} title="Refresh" className="p-2 rounded-full hover:bg-gray-100 text-gray-600">
-              <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            <span className="text-sm bg-gray-100 px-3 py-1 rounded-full">
+              {address.slice(0, 6)}…{address.slice(-4)}
+            </span>
+            <button
+              onClick={refresh}
+              className="p-2 rounded-full hover:bg-gray-100"
+            >
+              <RefreshCw
+                size={16}
+                className={loading ? "animate-spin" : ""}
+              />
             </button>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* <div className="mb-6">
-        <div className="text-gray-500 text-sm">Balance</div>
-        <div className="text-3xl font-extrabold">{formatted.toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC</div>
-        <div className="text-xs text-gray-400">{balanceU6.toString()} base units</div>
-      </div> */}
-
-<div className="mb-6">
-  <div className="text-gray-500 text-sm">Balance</div>
-  <div className="text-3xl font-extrabold">
-    {(Number(balanceU6) / DECIMALS).toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC
-  </div>
-  <div className="text-xs text-gray-400">{balanceU6.toString()} base units</div>
-  <div className="text-xs text-gray-400">
-    Wallet: {(Number(tokenBalU6) / DECIMALS).toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC
-  </div>
-</div>
-      <div className="mt-2 flex items-center gap-3">
-  <button
-    onClick={onFaucet}
-    disabled={loading}
-    className="text-xs bg-gray-800 text-white px-3 py-1 rounded-full hover:bg-gray-900"
-  >
-    Get test USDC
-  </button>
-</div>
-
-      <form onSubmit={onDeposit} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-3">
-        <div className="md:col-span-2">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Deposit amount (USDC)</label>
-          <input
-            type="number"
-            step="0.000001"
-            min="0"
-            value={depAmount}
-            onChange={(e) => setDepAmount(e.target.value)}
-            placeholder="e.g. 10"
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
+      <section className="mb-6">
+        <div className="text-sm text-gray-500">Vault balance</div>
+        <div className="text-3xl font-extrabold">
+          {(Number(vaultBal) / DECIMALS).toLocaleString()} USDC
         </div>
-        <button disabled={loading} className="bg-green-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2">
+        <div className="text-xs text-gray-400">
+          Wallet: {(Number(walletBal) / DECIMALS).toLocaleString()} USDC
+        </div>
+      </section>
+
+      <button
+        onClick={handleFaucet}
+        disabled={loading}
+        className="mb-4 text-xs bg-gray-900 text-white px-3 py-1 rounded-full"
+      >
+        Get test USDC
+      </button>
+
+      <form onSubmit={handleDeposit} className="grid grid-cols-3 gap-3 mb-3">
+        <input
+          className="col-span-2 px-4 py-2 border rounded-xl"
+          placeholder="Deposit USDC"
+          value={depositAmount}
+          onChange={(e) => setDepositAmount(e.target.value)}
+          type="number"
+          step="0.000001"
+        />
+        <button
+          disabled={loading}
+          className="bg-green-600 text-white rounded-xl flex items-center justify-center gap-2"
+        >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowDownToLine size={16} />}
           Deposit
         </button>
       </form>
 
-      <form onSubmit={onWithdraw} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-        <div className="md:col-span-2">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Withdraw amount (USDC)</label>
-          <input
-            type="number"
-            step="0.000001"
-            min="0"
-            value={wdAmount}
-            onChange={(e) => setWdAmount(e.target.value)}
-            placeholder="e.g. 5"
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <button disabled={loading} className="bg-amber-600 text-white px-4 py-2 rounded-xl font-semibold hover:bg-amber-700 transition-colors flex items-center justify-center gap-2">
+      <form onSubmit={handleWithdraw} className="grid grid-cols-3 gap-3">
+        <input
+          className="col-span-2 px-4 py-2 border rounded-xl"
+          placeholder="Withdraw USDC"
+          value={withdrawAmount}
+          onChange={(e) => setWithdrawAmount(e.target.value)}
+          type="number"
+          step="0.000001"
+        />
+        <button
+          disabled={loading}
+          className="bg-amber-600 text-white rounded-xl flex items-center justify-center gap-2"
+        >
           {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUpFromLine size={16} />}
           Withdraw
         </button>
@@ -225,8 +255,8 @@ const refresh = useCallback(async () => {
 
       {(error || success) && (
         <div className="mt-4 text-sm">
-          {error && <div className="text-red-600">{error}</div>}
-          {success && <div className="text-green-600">{success}</div>}
+          {error && <p className="text-red-600">{error}</p>}
+          {success && <p className="text-green-600">{success}</p>}
         </div>
       )}
     </div>
