@@ -1,264 +1,284 @@
-"use client";
+import * as React from "react";
 
-import React, { useCallback, useEffect, useState } from "react";
-import {
-  Loader2,
-  Wallet,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  RefreshCw,
-} from "lucide-react";
+const REMOTE_DOMAIN_STACKS = 10003;
 
-import {
-  authenticate,
-  getUserAddress,
-  getVaultBalance,
-  getTokenBalance,
-  depositToVault,
-  withdrawFromVault,
-  faucetMint,
-} from "@/lib/stacks";
+export function BridgeUSDC() {
+  const [acct, setAcct] = React.useState<`0x${string}` | null>(null);
+  const [ethBal, setEthBal] = React.useState("0");
+  const [usdcBal, setUsdcBal] = React.useState("0");
+  const [amount, setAmount] = React.useState("");
+  const [remoteRecipient32, setRemoteRecipient32] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState("");
 
-const DECIMALS = 1_000_000; // USDC u6
+  const ETH_RPC = process.env.NEXT_PUBLIC_ETH_RPC_URL;
+  const X_RESERVE = process.env.NEXT_PUBLIC_X_RESERVE_CONTRACT;
+  const ETH_USDC = process.env.NEXT_PUBLIC_ETH_USDC_CONTRACT;
 
-export default function Vault() {
-  const [address, setAddress] = useState<string | null>(null);
-  const [vaultBal, setVaultBal] = useState<bigint>(0n);
-  const [walletBal, setWalletBal] = useState<bigint>(0n);
-  const [loading, setLoading] = useState(false);
+  /* ------------------------------- helpers ------------------------------- */
 
-  const [depositAmount, setDepositAmount] = useState("");
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  /* ----------------------------- utils ----------------------------- */
-
-  const toBaseUnits = (val: string): number | null => {
-    const n = Number(val);
-    if (!Number.isFinite(n) || n <= 0) return null;
-    return Math.floor(n * DECIMALS);
+  const assertEnv = () => {
+    if (!ETH_RPC || !X_RESERVE || !ETH_USDC) {
+      throw new Error(
+        "Missing env vars: NEXT_PUBLIC_ETH_RPC_URL, NEXT_PUBLIC_X_RESERVE_CONTRACT, NEXT_PUBLIC_ETH_USDC_CONTRACT"
+      );
+    }
   };
 
-  async function waitForStacksSuccess(txId: string) {
-    const url = `https://api.testnet.hiro.so/extended/v1/tx/${txId}`;
+  const parseUSDC = () => {
+    const v = Math.floor(Number(amount) * 1e6);
+    if (!Number.isFinite(v) || v <= 0) {
+      throw new Error("Invalid USDC amount");
+    }
+    return BigInt(v);
+  };
 
-    for (let i = 0; i < 20; i++) {
-      const r = await fetch(url);
-      const j = await r.json();
+  /* --------------------------- viem clients --------------------------- */
 
-      if (j.tx_status === "success") return;
+  const getPublicClient = async () => {
+    const { createPublicClient, http } = await import("viem");
+    const { sepolia } = await import("viem/chains");
+    return createPublicClient({
+      chain: sepolia,
+      transport: http(ETH_RPC!),
+    });
+  };
 
-      if (
-        ["abort_by_response", "abort_by_post_condition", "rejected"].includes(
-          j.tx_status
-        )
-      ) {
-        throw new Error(
-          "Transaction failed: " + (j.tx_result?.repr ?? j.tx_status)
-        );
+  const getWalletClient = async () => {
+    const provider = (window as any).ethereum;
+    if (!provider) throw new Error("MetaMask not found");
+
+    await provider.request({ method: "eth_requestAccounts" });
+
+    const { createWalletClient, custom } = await import("viem");
+    const { sepolia } = await import("viem/chains");
+
+    return createWalletClient({
+      chain: sepolia,
+      transport: custom(provider),
+    });
+  };
+
+  /* ------------------------------- actions ------------------------------- */
+
+  const connect = async () => {
+    try {
+      assertEnv();
+      const provider = (window as any).ethereum;
+      if (!provider) throw new Error("MetaMask not found");
+
+      const [a] = await provider.request({
+        method: "eth_requestAccounts",
+      });
+
+      setAcct(a);
+      setMsg("Connected");
+      await refresh(a);
+    } catch (e: any) {
+      setMsg(e.message || "Connect failed");
+    }
+  };
+
+  const refresh = async (account?: `0x${string}`) => {
+    try {
+      assertEnv();
+      const addr = account || acct;
+      if (!addr) return;
+
+      const client = await getPublicClient();
+
+      const wei = await client.getBalance({ address: addr });
+      setEthBal((Number(wei) / 1e18).toFixed(6));
+
+      const ERC20_ABI = [
+        {
+          name: "balanceOf",
+          type: "function",
+          stateMutability: "view",
+          inputs: [{ name: "account", type: "address" }],
+          outputs: [{ name: "balance", type: "uint256" }],
+        },
+      ] as const;
+
+      const bal = await client.readContract({
+        address: ETH_USDC as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [addr],
+      });
+
+      setUsdcBal((Number(bal) / 1e6).toFixed(6));
+    } catch (e: any) {
+      setMsg(e.message || "Refresh failed");
+    }
+  };
+
+  const approve = async () => {
+    try {
+      assertEnv();
+      setBusy(true);
+      setMsg("Approving USDC…");
+
+      const wallet = await getWalletClient();
+      const value = parseUSDC();
+
+      const ERC20_ABI = [
+        {
+          name: "approve",
+          type: "function",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "spender", type: "address" },
+            { name: "amount", type: "uint256" },
+          ],
+          outputs: [{ name: "success", type: "bool" }],
+        },
+      ] as const;
+
+      const hash = await wallet.writeContract({
+        address: ETH_USDC as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: "approve",
+        args: [X_RESERVE as `0x${string}`, value],
+      });
+
+      setMsg(`Approval tx: ${hash}`);
+      await refresh();
+    } catch (e: any) {
+      setMsg(e.message || "Approval failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deposit = async () => {
+    try {
+      assertEnv();
+      setBusy(true);
+      setMsg("Depositing to Stacks…");
+
+      if (!/^0x[0-9a-fA-F]{64}$/.test(remoteRecipient32)) {
+        throw new Error("Invalid remoteRecipient (bytes32)");
       }
 
-      await new Promise((res) => setTimeout(res, 4000));
-    }
+      const wallet = await getWalletClient();
+      const value = parseUSDC();
 
-    throw new Error("Timed out waiting for confirmation");
-  }
+      const ABI = [
+        {
+          name: "depositToRemote",
+          type: "function",
+          stateMutability: "nonpayable",
+          inputs: [
+            { name: "value", type: "uint256" },
+            { name: "remoteDomain", type: "uint32" },
+            { name: "remoteRecipient", type: "bytes32" },
+            { name: "localToken", type: "address" },
+            { name: "maxFee", type: "uint256" },
+            { name: "hookData", type: "bytes" },
+          ],
+          outputs: [],
+        },
+      ] as const;
 
-  /* ---------------------------- balances ---------------------------- */
+      const hash = await wallet.writeContract({
+        address: X_RESERVE as `0x${string}`,
+        abi: ABI,
+        functionName: "depositToRemote",
+        args: [
+          value,
+          REMOTE_DOMAIN_STACKS,
+          remoteRecipient32 as `0x${string}`,
+          ETH_USDC as `0x${string}`,
+          0n,
+          "0x",
+        ],
+      });
 
-  const refresh = useCallback(async () => {
-    if (!address) return;
-    setLoading(true);
-    try {
-      const [vault, wallet] = await Promise.all([
-        getVaultBalance(address),
-        getTokenBalance(address),
-      ]);
-      setVaultBal(vault);
-      setWalletBal(wallet);
-    } catch (e: any) {
-      setError(e?.message ?? "Failed to refresh balances");
-    } finally {
-      setLoading(false);
-    }
-  }, [address]);
-
-  useEffect(() => {
-    setAddress(getUserAddress());
-  }, []);
-
-  useEffect(() => {
-    if (address) refresh();
-  }, [address, refresh]);
-
-  /* ---------------------------- actions ----------------------------- */
-
-  const handleDeposit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (!address) return authenticate();
-
-    const raw = toBaseUnits(depositAmount);
-    if (!raw) return setError("Invalid deposit amount");
-
-    try {
-      setLoading(true);
-      const txId = await depositToVault(raw);
-
-      setSuccess("Deposit submitted. Waiting for confirmation…");
-      await waitForStacksSuccess(txId);
-
+      setMsg(`Deposit tx: ${hash}`);
       await refresh();
-      setDepositAmount("");
-      setSuccess("Deposit confirmed 🎉");
     } catch (e: any) {
-      setError(e?.message ?? "Deposit failed");
+      setMsg(e.message || "Deposit failed");
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
-  const handleWithdraw = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    if (!address) return authenticate();
-
-    const raw = toBaseUnits(withdrawAmount);
-    if (!raw) return setError("Invalid withdrawal amount");
-
-    try {
-      setLoading(true);
-      const txId = await withdrawFromVault(raw);
-
-      setSuccess("Withdrawal submitted. Waiting for confirmation…");
-      await waitForStacksSuccess(txId);
-
-      await refresh();
-      setWithdrawAmount("");
-      setSuccess("Withdrawal confirmed ✅");
-    } catch (e: any) {
-      setError(e?.message ?? "Withdraw failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleFaucet = async () => {
-    setError(null);
-    setSuccess(null);
-
-    if (!address) return authenticate();
-
-    try {
-      setLoading(true);
-      await faucetMint();
-      setSuccess("Faucet called. Refreshing…");
-      await refresh();
-    } catch (e: any) {
-      setError(e?.message ?? "Faucet failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  /* ------------------------------ UI ------------------------------- */
+  /* ---------------------------------- UI ---------------------------------- */
 
   return (
-    <div className="max-w-2xl mx-auto mt-8 p-6 bg-white rounded-3xl shadow-xl border">
-      <header className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold">Vault</h2>
+    <section className="mt-10 p-4 border rounded-2xl">
+      <h3 className="text-lg font-semibold mb-2">
+        Bridge USDC (Ethereum → Stacks)
+      </h3>
 
-        {!address ? (
+      <div className="flex items-center gap-3 mb-3">
+        {!acct ? (
           <button
-            onClick={authenticate}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full"
+            onClick={connect}
+            className="px-3 py-1 bg-purple-600 text-white rounded-full text-sm"
           >
-            <Wallet size={18} /> Connect
+            Connect MetaMask
           </button>
         ) : (
-          <div className="flex items-center gap-3">
+          <>
             <span className="text-sm bg-gray-100 px-3 py-1 rounded-full">
-              {address.slice(0, 6)}…{address.slice(-4)}
+              {acct.slice(0, 6)}…{acct.slice(-4)}
             </span>
             <button
-              onClick={refresh}
-              className="p-2 rounded-full hover:bg-gray-100"
+              onClick={() => refresh()}
+              className="text-sm underline"
             >
-              <RefreshCw
-                size={16}
-                className={loading ? "animate-spin" : ""}
-              />
+              Refresh
             </button>
-          </div>
+          </>
         )}
-      </header>
+      </div>
 
-      <section className="mb-6">
-        <div className="text-sm text-gray-500">Vault balance</div>
-        <div className="text-3xl font-extrabold">
-          {(Number(vaultBal) / DECIMALS).toLocaleString()} USDC
-        </div>
-        <div className="text-xs text-gray-400">
-          Wallet: {(Number(walletBal) / DECIMALS).toLocaleString()} USDC
-        </div>
-      </section>
+      <div className="text-xs text-gray-600 mb-3">
+        <div>ETH: {ethBal}</div>
+        <div>USDC: {usdcBal}</div>
+      </div>
 
-      <button
-        onClick={handleFaucet}
-        disabled={loading}
-        className="mb-4 text-xs bg-gray-900 text-white px-3 py-1 rounded-full"
-      >
-        Get test USDC
-      </button>
-
-      <form onSubmit={handleDeposit} className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-2 gap-3 mb-3">
         <input
-          className="col-span-2 px-4 py-2 border rounded-xl"
-          placeholder="Deposit USDC"
-          value={depositAmount}
-          onChange={(e) => setDepositAmount(e.target.value)}
+          className="px-3 py-2 border rounded-xl text-sm"
+          placeholder="Amount (USDC)"
           type="number"
           step="0.000001"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
         />
+        <input
+          className="px-3 py-2 border rounded-xl text-sm"
+          placeholder="remoteRecipient (bytes32)"
+          value={remoteRecipient32}
+          onChange={(e) => setRemoteRecipient32(e.target.value)}
+        />
+      </div>
+
+      <div className="flex gap-3">
         <button
-          disabled={loading}
-          className="bg-green-600 text-white rounded-xl flex items-center justify-center gap-2"
+          disabled={busy || !acct}
+          onClick={approve}
+          className="px-3 py-2 bg-gray-900 text-white rounded-xl text-sm disabled:opacity-50"
         >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowDownToLine size={16} />}
+          Approve
+        </button>
+        <button
+          disabled={busy || !acct}
+          onClick={deposit}
+          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm disabled:opacity-50"
+        >
           Deposit
         </button>
-      </form>
+      </div>
 
-      <form onSubmit={handleWithdraw} className="grid grid-cols-3 gap-3">
-        <input
-          className="col-span-2 px-4 py-2 border rounded-xl"
-          placeholder="Withdraw USDC"
-          value={withdrawAmount}
-          onChange={(e) => setWithdrawAmount(e.target.value)}
-          type="number"
-          step="0.000001"
-        />
-        <button
-          disabled={loading}
-          className="bg-amber-600 text-white rounded-xl flex items-center justify-center gap-2"
-        >
-          {loading ? <Loader2 size={16} className="animate-spin" /> : <ArrowUpFromLine size={16} />}
-          Withdraw
-        </button>
-      </form>
-
-      {(error || success) && (
-        <div className="mt-4 text-sm">
-          {error && <p className="text-red-600">{error}</p>}
-          {success && <p className="text-green-600">{success}</p>}
+      {msg && (
+        <div className="mt-3 text-xs text-gray-700 break-all">
+          {msg}
         </div>
       )}
-    </div>
+    </section>
   );
 }
