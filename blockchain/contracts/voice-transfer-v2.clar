@@ -1,6 +1,6 @@
 ;; voice-transfer.clar
 ;; Voice-Driven Stablecoin Transfers
-;; Intent-Based Payments with Address Catalogs
+;; IntentBased Payments with Address Catalogs
 
 ;; Traits
 (use-trait sip-010-trait .sip-010-trait.sip-010-trait)
@@ -13,6 +13,8 @@
 (define-constant ERR-INVALID-VERSION (err u104))
 (define-constant ERR-TRANSFER-FAILED (err u106))
 (define-constant ERR-INSUFFICIENT-BALANCE (err u108))
++;; Bridge errors
++(define-constant ERR-BRIDGE-AMOUNT (err u120))
 
 (define-constant MAGIC-BYTES 0x564f4943) ;; "VOIC"
 (define-constant VERSION u1)
@@ -36,7 +38,7 @@
 
 ;; Public Functions
 
-;; @desc Deposit tokens into the voice vault
+;; @desc deposit tokens into the voice vault
 (define-public (deposit (amount uint) (token-contract <sip-010-trait>))
     (let
         (
@@ -122,6 +124,24 @@
     (buff-to-uint-be data)
 )
 
++;; ------------------------------------------------------------------
++;; Bridge credit (called by off-chain relayer)
++;; NOTE: This function only updates internal vault balances. Ensure the
++;; contract holds enough token balance to satisfy future withdrawals.
++;; For tests with `mock-usdc-v2`, you can pre-fund the contract by
++;; calling its `faucet` as the contract via a dedicated helper, or by
++;; transferring tokens to the contract address.
++;; ------------------------------------------------------------------
++(define-public (bridge-credit (recipient principal) (amount uint))
++    (let (
++            (current (default-to u0 (map-get? vault-balances recipient)))
++        )
++        (asserts! (> amount u0) ERR-BRIDGE-AMOUNT)
++        (map-set vault-balances recipient (+ current amount))
++        (ok true)
++    )
++)
++
 ;; Read-only functions
 
 (define-read-only (get-vault-balance (who principal))
@@ -130,4 +150,3 @@
 
 (define-read-only (is-nonce-used (nonce (buff 32)))
     (is-some (map-get? used-nonces nonce))
-)
