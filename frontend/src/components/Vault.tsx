@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from "lucide-react";
-import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint } from "@/lib/stacks";
+// import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint } from "@/lib/stacks";
+import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint, getTokenBalance } from "@/lib/stacks";
 const DECIMALS = 1_000_000; // mock USDC u6
 
 export default function Vault() {
@@ -13,6 +14,7 @@ export default function Vault() {
   const [wdAmount, setWdAmount] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [tokenBalU6, setTokenBalU6] = useState<bigint>(0n);
 
   const refresh = useCallback(async () => {
     if (!address) return;
