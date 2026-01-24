@@ -74,6 +74,23 @@ function splitContract(id: string): { address: string; name: string } {
   return { address, name };
 }
 
+// Read wallet token balance (mock USDC) for a principal
+export async function getTokenBalance(who: string): Promise<bigint> {
+    const [address, name] = USDC_CONTRACT.split('.');
+    const result = await callReadOnlyFunction({
+      contractAddress: address,
+      contractName: name,
+      functionName: 'get-balance',
+      functionArgs: [principalCV(who)],
+      network,
+      senderAddress: who,
+    });
+    const json = cvToJSON(result as any);
+    // get-balance returns (ok uint), so the uint is nested in .value.value
+    const val = (json as any)?.value?.value ?? (json as any)?.value;
+    return BigInt(val as string);
+  }
+
 // Read vault balance (uint) for a principal
 export async function getVaultBalance(who: string): Promise<bigint> {
   const { address, name } = splitContract(VOICE_TRANSFER_CONTRACT);
