@@ -46,7 +46,7 @@ const refresh = useCallback(async () => {
       setLoading(false);
     }
   }, [address]);
-  
+
   useEffect(() => {
     setAddress(getUserAddress());
   }, []);
@@ -159,11 +159,22 @@ const refresh = useCallback(async () => {
         )}
       </div>
 
-      <div className="mb-6">
+      {/* <div className="mb-6">
         <div className="text-gray-500 text-sm">Balance</div>
         <div className="text-3xl font-extrabold">{formatted.toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC</div>
         <div className="text-xs text-gray-400">{balanceU6.toString()} base units</div>
-      </div>
+      </div> */}
+
+<div className="mb-6">
+  <div className="text-gray-500 text-sm">Balance</div>
+  <div className="text-3xl font-extrabold">
+    {(Number(balanceU6) / DECIMALS).toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC
+  </div>
+  <div className="text-xs text-gray-400">{balanceU6.toString()} base units</div>
+  <div className="text-xs text-gray-400">
+    Wallet: {(Number(tokenBalU6) / DECIMALS).toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC
+  </div>
+</div>
       <div className="mt-2 flex items-center gap-3">
   <button
     onClick={onFaucet}

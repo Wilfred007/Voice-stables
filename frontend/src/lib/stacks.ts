@@ -67,7 +67,8 @@ export function getUserAddress(): string | null {
 
 // Contracts (Testnet)
 export const VOICE_TRANSFER_CONTRACT = 'ST3HZSQ3EVYVFAX6KR3077S69FNZHB0XWMQ2WWTNJ.voice-transfer-v2';
-export const USDC_CONTRACT = 'ST3HZSQ3EVYVFAX6KR3077S69FNZHB0XWMQ2WWTNJ.mock-usdc-v2';
+// Set NEXT_PUBLIC_USDC_CONTRACT to point to USDCx on testnet when ready. Fallback to mock-usdc for dev.
+export const USDC_CONTRACT = (process.env.NEXT_PUBLIC_USDC_CONTRACT as string | undefined) || 'ST3HZSQ3EVYVFAX6KR3077S69FNZHB0XWMQ2WWTNJ.mock-usdc-v2';
 
 function splitContract(id: string): { address: string; name: string } {
   const [address, name] = id.split('.');
@@ -106,36 +107,39 @@ export async function getVaultBalance(who: string): Promise<bigint> {
   return BigInt(json.value as string);
 }
 
-// Deposit amount (base units) into the vault
-export async function depositToVault(amount: number | bigint) {
+// Deposit amount (base units) into the vault; resolves with txId
+export async function depositToVault(amount: number | bigint): Promise<string> {
   const { address: vtAddr, name: vtName } = splitContract(VOICE_TRANSFER_CONTRACT);
   const { address: usdcAddr, name: usdcName } = splitContract(USDC_CONTRACT);
-  return openContractCall({
-    contractAddress: vtAddr,
-    contractName: vtName,
-    functionName: 'deposit',
-    functionArgs: [
-      uintCV(typeof amount === 'bigint' ? Number(amount) : amount),
-      contractPrincipalCV(usdcAddr, usdcName),
-    ],
-    network,
-    onFinish: () => {},
+  return new Promise((resolve) => {
+    openContractCall({
+      contractAddress: vtAddr,
+      contractName: vtName,
+      functionName: 'deposit',
+      functionArgs: [
+        uintCV(typeof amount === 'bigint' ? Number(amount) : amount),
+        contractPrincipalCV(usdcAddr, usdcName),
+      ],
+      network,
+      onFinish: (data: any) => resolve(data?.txId),
+    });
   });
 }
 
-// Withdraw amount (base units) from the vault
-export async function withdrawFromVault(amount: number | bigint) {
+// Withdraw amount (base units) from the vault; resolves with txId
+export async function withdrawFromVault(amount: number | bigint): Promise<string> {
   const { address: vtAddr, name: vtName } = splitContract(VOICE_TRANSFER_CONTRACT);
   const { address: usdcAddr, name: usdcName } = splitContract(USDC_CONTRACT);
-  return openContractCall({
-    contractAddress: vtAddr,
-    contractName: vtName,
-    functionName: 'withdraw',
-    functionArgs: [
-      uintCV(typeof amount === 'bigint' ? Number(amount) : amount),
-      contractPrincipalCV(usdcAddr, usdcName),
-    ],
-    network,
-    onFinish: () => {},
+  return new Promise((resolve) => {
+    openContractCall({
+      contractAddress: vtAddr,
+      contractName: vtName,
+      functionName: 'withdraw',
+      functionArgs: [
+        uintCV(typeof amount === 'bigint' ? Number(amount) : amount),
+        contractPrincipalCV(usdcAddr, usdcName),
+      ],
+      network,
+      onFinish: (data: any) => resolve(data?.txId),
+    });
   });
-}
