@@ -1,4 +1,3 @@
-// scripts/deploy.js
 const { ethers, network, run } = require("hardhat");
 
 async function main() {
@@ -6,19 +5,22 @@ async function main() {
 
   const XReserve = await ethers.getContractFactory("XReserve");
   const xreserve = await XReserve.deploy();
-  await xreserve.deployed();
+  await xreserve.waitForDeployment();
 
-  console.log(`XReserve deployed at: ${xreserve.address}`);
+  const address = await xreserve.getAddress();
+  console.log(`XReserve deployed at: ${address}`);
 
   // Optional: Etherscan verification
   // Requires ETHERSCAN_API_KEY in your .env and proper etherscan config in hardhat.config.js
   if (network.name !== "hardhat" && process.env.ETHERSCAN_API_KEY) {
     console.log("Waiting for a few confirmations before verification...");
     try {
-      // Wait for some blocks to make sure Etherscan indexes the deployment
-      await xreserve.deployTransaction.wait(5);
+      const tx = xreserve.deploymentTransaction();
+      if (tx) {
+        await tx.wait(5);
+      }
       await run("verify:verify", {
-        address: xreserve.address,
+        address,
         constructorArguments: [],
       });
       console.log("Verification complete.");
