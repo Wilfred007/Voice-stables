@@ -12,6 +12,19 @@ export const appDetails = {
   icon: typeof window !== 'undefined' ? window.location.origin + '/logo.png' : '',
 };
 
+// Mint test USDC to the caller using the mock token faucet
+export async function faucetMint() {
+    const [address, name] = USDC_CONTRACT.split('.');
+    return openContractCall({
+      contractAddress: address,
+      contractName: name,
+      functionName: 'faucet',
+      functionArgs: [],
+      network,
+      onFinish: () => {},
+    });
+  }
+
 export function authenticate() {
   try {
     showStacksAuth({

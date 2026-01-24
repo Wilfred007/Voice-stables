@@ -1,9 +1,8 @@
-"use client";
+"use client"
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Loader2, Wallet, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from "lucide-react";
-import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault } from "@/lib/stacks";
-
+import { authenticate, getUserAddress, getVaultBalance, depositToVault, withdrawFromVault, faucetMint } from "@/lib/stacks";
 const DECIMALS = 1_000_000; // mock USDC u6
 
 export default function Vault() {
@@ -73,6 +72,25 @@ export default function Vault() {
     }
   };
 
+  const onFaucet = async () => {
+    setError(null);
+    setSuccess(null);
+    if (!address) {
+      authenticate();
+      return;
+    }
+    try {
+      setLoading(true);
+      await faucetMint();
+      setSuccess("Faucet called. Confirm in wallet, then refresh balance.");
+      setTimeout(() => refresh(), 2000);
+    } catch (e: any) {
+      setError(e?.message ?? "Faucet failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const onWithdraw = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -126,6 +144,15 @@ export default function Vault() {
         <div className="text-3xl font-extrabold">{formatted.toLocaleString(undefined, { maximumFractionDigits: 6 })} USDC</div>
         <div className="text-xs text-gray-400">{balanceU6.toString()} base units</div>
       </div>
+      <div className="mt-2 flex items-center gap-3">
+  <button
+    onClick={onFaucet}
+    disabled={loading}
+    className="text-xs bg-gray-800 text-white px-3 py-1 rounded-full hover:bg-gray-900"
+  >
+    Get test USDC
+  </button>
+</div>
 
       <form onSubmit={onDeposit} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end mb-3">
         <div className="md:col-span-2">
