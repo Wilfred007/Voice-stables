@@ -1,0 +1,16 @@
+{
+  "name": "x-reserve-relayer",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Off-chain relayer listening to Ethereum DepositToRemote and crediting Stacks vault",
+  "scripts": {
+    "start": "node eth-to-stacks.js"
+  },
+  "dependencies": {
+    "@stacks/network": "^6.14.0",
+    "@stacks/transactions": "^6.14.0",
+    "dotenv": "^16.4.5",
+    "viem": "^2.9.28"
+  }
+}
