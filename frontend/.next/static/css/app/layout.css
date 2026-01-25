@@ -776,6 +776,10 @@ video {
 .bg-white\/5 {
   background-color: rgb(255 255 255 / 0.05);
 }
+.bg-gray-800 {
+  --tw-bg-opacity: 1;
+  background-color: rgb(31 41 55 / var(--tw-bg-opacity));
+}
 .bg-\[radial-gradient\(circle_at_top\2c _rgba\(255\2c 255\2c 255\2c 0\.06\)\2c _transparent_40\%\)\2c linear-gradient\(to_right\2c rgba\(255\2c 255\2c 255\2c 0\.06\)_1px\2c transparent_1px\)\2c linear-gradient\(to_bottom\2c rgba\(255\2c 255\2c 255\2c 0\.06\)_1px\2c transparent_1px\)\] {
   background-image: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 40%),linear-gradient(to right,rgba(255,255,255,0.06) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,0.06) 1px,transparent 1px);
 }
@@ -970,6 +974,9 @@ video {
 .opacity-80 {
   opacity: 0.8;
 }
+.opacity-0 {
+  opacity: 0;
+}
 .shadow {
   --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);
@@ -1038,6 +1045,9 @@ video {
 }
 .delay-300 {
   transition-delay: 300ms;
+}
+.duration-300 {
+  transition-duration: 300ms;
 }
 /* Gradient text utility */
 .gradient-text {
@@ -1113,6 +1123,11 @@ body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, U
 
 .hover\:bg-white\/90:hover {
   background-color: rgb(255 255 255 / 0.9);
+}
+
+.hover\:bg-gray-700:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(55 65 81 / var(--tw-bg-opacity));
 }
 
 .hover\:shadow-xl:hover {
