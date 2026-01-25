@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
+import dynamic from "next/dynamic";
 
 // Dynamically import ManualTransfer, no SSR
-const ManualTransfer = dynamic(() => import('@/components/ManualTransfer'), {
-    ssr: false,
-  });
-  
-  // Dynamically import Vault, no SSR
-  const Vault = dynamic(() => import('@/components/Vault'), {
-    ssr: false,
-  });
-  
-  // Dynamically import Landing, no SSR
-  const Landing = dynamic(() => import('@/components/Landing'), {
-    ssr: false,
-  });
+const ManualTransfer = dynamic(() => import("@/components/ManualTransfer"), {
+  ssr: false,
+});
+
+// Dynamically import Vault, no SSR
+const Vault = dynamic(() => import("@/components/Vault"), {
+  ssr: false,
+});
+
+// Dynamically import Landing, no SSR
+const Landing = dynamic(() => import("@/components/Landing"), {
+  ssr: false,
+});
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-5xl mx-auto px-6">
+    <main className="min-h-screen bg-background">
+      <div className="mx-auto max-w-5xl px-6">
         <Landing />
         <ManualTransfer />
         <Vault />
