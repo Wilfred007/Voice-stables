@@ -46,13 +46,21 @@ type BookEntry = {
 /* -------------------------------- utilities -------------------------------- */
 
 const isStacksPrincipal = (v: string) =>
-  /^ST[A-Z0-9]{38,41}$/.test(v);
+  /^ST[0-9A-Z]{38,41}$/.test(v.toUpperCase());
 
 const parseUSDC = (value: string) => {
   if (!value) throw new Error("Enter amount");
   const [whole, frac = ""] = value.split(".");
   if (frac.length > 6) throw new Error("USDC supports max 6 decimals");
   return BigInt(whole + frac.padEnd(6, "0"));
+};
+
+const resolveNameOrAddress = (input: string, book: BookEntry[]): string | null => {
+  const needle = input.trim().toLowerCase();
+  const found = book.find((b) => b.name.trim().toLowerCase() === needle);
+  if (found) return found.address;
+  if (isStacksPrincipal(input.trim())) return input.trim();
+  return null;
 };
 
 /* -------------------------------- component -------------------------------- */
@@ -104,10 +112,7 @@ export default function ManualTransfer() {
     const rec = lower.match(/\bto\s+([^\s]+)/)?.[1];
     const mem = lower.match(/\bmemo\s+(.+)$/)?.[1];
 
-    const resolved =
-      rec &&
-      (book.find((b) => b.name.toLowerCase() === rec)?.address ??
-        (isStacksPrincipal(rec) ? rec : null));
+    const resolved = rec ? resolveNameOrAddress(rec, book) : null;
 
     if (amt) setAmount(amt);
     if (resolved) setRecipient(resolved);
@@ -168,11 +173,15 @@ export default function ManualTransfer() {
       return;
     }
 
+    const resolvedRecipient = resolveNameOrAddress(recipient, book);
+    if (!resolvedRecipient) {
+      setStatus("error");
+      setError("Invalid recipient");
+      return;
+    }
+
     try {
       const raw = parseUSDC(amount);
-      if (!isStacksPrincipal(recipient))
-        throw new Error("Invalid Stacks address");
-
       setStatus("signing");
 
       const memoArg = memo
@@ -186,7 +195,7 @@ export default function ManualTransfer() {
         functionArgs: [
           uintCV(Number(raw)),
           noneCV(), // ✅ MUST be noneCV() for SIP-010
-          principalCV(recipient.trim()),
+          principalCV(resolvedRecipient),
           memoArg,
         ],
         network,
@@ -305,7 +314,7 @@ export default function ManualTransfer() {
         />
 
         <input
-          placeholder="Recipient (ST...)"
+          placeholder="Recipient (ST...) or name"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
           className="border rounded-xl px-3 py-2"
