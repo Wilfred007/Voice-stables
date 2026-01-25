@@ -1,26 +1,162 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Send, Wallet, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  Send,
+  Wallet,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  Mic,
+  Book,
+} from "lucide-react";
 import { authenticate, getUserAddress, network } from "@/lib/stacks";
 import { openContractCall } from "@stacks/connect";
-import { uintCV, principalCV, noneCV, someCV, bufferCV } from "@stacks/transactions";
+import {
+  uintCV,
+  principalCV,
+  noneCV,
+  someCV,
+  bufferCV,
+} from "@stacks/transactions";
 
-// NOTE: Keep this in sync with VoiceTransfer or move to a shared config file.
-const USDC_CONTRACT = "ST3HZSQ3EVYVFAX6KR3077S69FNZHB0XWMQ2WWTNJ.mock-usdc-v2";
+/* ---------------------------------- config --------------------------------- */
+
+const USDC_CONTRACT =
+  "ST3HZSQ3EVYVFAX6KR3077S69FNZHB0XWMQ2WWTNJ.mock-usdc-v2";
+
+const ADDRESS_BOOK_KEY = "voice_stables_address_book";
+
+/* ---------------------------------- types ---------------------------------- */
+
+type Status =
+  | "idle"
+  | "listening"
+  | "parsed"
+  | "signing"
+  | "submitting"
+  | "success"
+  | "error";
+
+type BookEntry = {
+  name: string;
+  address: string;
+};
+
+/* -------------------------------- utilities -------------------------------- */
+
+const isStacksPrincipal = (v: string) =>
+  /^ST[A-Z0-9]{38,41}$/.test(v);
+
+const parseUSDC = (value: string) => {
+  if (!value) throw new Error("Enter amount");
+  const [whole, frac = ""] = value.split(".");
+  if (frac.length > 6) throw new Error("USDC supports max 6 decimals");
+  return BigInt(whole + frac.padEnd(6, "0"));
+};
+
+/* -------------------------------- component -------------------------------- */
 
 export default function ManualTransfer() {
   const [address, setAddress] = useState<string | null>(null);
-  const [amount, setAmount] = useState<string>("");
-  const [recipient, setRecipient] = useState<string>("");
-  const [memo, setMemo] = useState<string>("");
-  const [status, setStatus] = useState<"idle" | "signing" | "submitting" | "success" | "error">("idle");
+  const [amount, setAmount] = useState("");
+  const [recipient, setRecipient] = useState("");
+  const [memo, setMemo] = useState("");
+
+  const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [txId, setTxId] = useState<string | null>(null);
+
+  /* ------------------------------ voice state ------------------------------ */
+
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState("");
+
+  /* ---------------------------- address book ---------------------------- */
+
+  const [book, setBook] = useState<BookEntry[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newAddr, setNewAddr] = useState("");
 
   useEffect(() => {
     setAddress(getUserAddress());
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(ADDRESS_BOOK_KEY);
+      if (raw) setBook(JSON.parse(raw));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const saveBook = (next: BookEntry[]) => {
+    setBook(next);
+    localStorage.setItem(ADDRESS_BOOK_KEY, JSON.stringify(next));
+  };
+
+  /* ------------------------------ voice logic ------------------------------ */
+
+  const parseVoice = (text: string) => {
+    const lower = text.toLowerCase();
+    const amt = lower.match(/send\s+([0-9]+(?:\.[0-9]+)?)/)?.[1];
+    const rec = lower.match(/\bto\s+([^\s]+)/)?.[1];
+    const mem = lower.match(/\bmemo\s+(.+)$/)?.[1];
+
+    const resolved =
+      rec &&
+      (book.find((b) => b.name.toLowerCase() === rec)?.address ??
+        (isStacksPrincipal(rec) ? rec : null));
+
+    if (amt) setAmount(amt);
+    if (resolved) setRecipient(resolved);
+    if (mem) setMemo(mem);
+
+    if (amt && resolved) {
+      setStatus("parsed");
+      setError(null);
+    } else {
+      setStatus("error");
+      setError("Could not parse amount or recipient");
+    }
+  };
+
+  const startVoice = () => {
+    const SR =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      setStatus("error");
+      setError("Speech recognition not supported");
+      return;
+    }
+
+    setIsListening(true);
+    setTranscript("");
+    setStatus("listening");
+
+    const rec = new SR();
+    rec.lang = "en-US";
+    rec.interimResults = false;
+
+    rec.onresult = (e: any) => {
+      const text = e.results[0][0].transcript;
+      setTranscript(text);
+      parseVoice(text);
+      setIsListening(false);
+    };
+
+    rec.onerror = () => {
+      setIsListening(false);
+      setStatus("error");
+      setError("Voice recognition failed");
+    };
+
+    rec.start();
+  };
+
+  /* ------------------------------- submit ------------------------------- */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,24 +168,12 @@ export default function ManualTransfer() {
       return;
     }
 
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || amt <= 0) {
-      setStatus("error");
-      setError("Enter a valid amount");
-      return;
-    }
-
-    if (!recipient || !recipient.includes("ST")) {
-      setStatus("error");
-      setError("Enter a valid Stacks principal for recipient");
-      return;
-    }
-
     try {
-      setStatus("signing");
+      const raw = parseUSDC(amount);
+      if (!isStacksPrincipal(recipient))
+        throw new Error("Invalid Stacks address");
 
-      const decimals = 1_000_000; // u6 for mock USDC
-      const raw = Math.floor(amt * decimals);
+      setStatus("signing");
 
       const memoArg = memo
         ? someCV(bufferCV(new TextEncoder().encode(memo).slice(0, 34)))
@@ -60,8 +184,8 @@ export default function ManualTransfer() {
         contractName: USDC_CONTRACT.split(".")[1],
         functionName: "transfer",
         functionArgs: [
-          uintCV(raw),
-          principalCV(address),
+          uintCV(Number(raw)),
+          noneCV(), // ✅ MUST be noneCV() for SIP-010
           principalCV(recipient.trim()),
           memoArg,
         ],
@@ -73,107 +197,158 @@ export default function ManualTransfer() {
           setRecipient("");
           setMemo("");
         },
-        onCancel: () => {
-          setStatus("idle");
-        },
+        onCancel: () => setStatus("idle"),
       });
 
       setStatus("submitting");
     } catch (err: any) {
       setStatus("error");
-      setError(err?.message ?? "Transfer failed");
+      setError(err.message ?? "Transfer failed");
     }
   };
 
+  /* ---------------------------------- UI ---------------------------------- */
+
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-3xl shadow-xl border border-gray-100">
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded-3xl shadow border">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-gray-900">Send USDC</h2>
+        <h2 className="text-xl font-bold">Send USDC</h2>
         {!address ? (
           <button
             onClick={authenticate}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full hover:bg-blue-700 transition-all shadow"
+            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full"
           >
-            <Wallet size={18} /> Connect
+            <Wallet size={16} /> Connect
           </button>
         ) : (
-          <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {address.slice(0, 6)}...{address.slice(-4)}
-          </div>
+          <span className="text-sm bg-gray-100 px-3 py-1 rounded-full">
+            {address.slice(0, 6)}…{address.slice(-4)}
+          </span>
         )}
       </div>
 
-      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Amount (USDC)</label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="e.g. 25"
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Recipient (Stacks address)</label>
-          <input
-            type="text"
-            value={recipient}
-            onChange={(e) => setRecipient(e.target.value)}
-            placeholder="ST..."
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <div className="md:col-span-2">
-          <label className="block text-xs font-semibold text-gray-600 mb-1">Memo (optional)</label>
-          <input
-            type="text"
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            placeholder="Up to 34 bytes"
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-          />
-        </div>
-        <div className="md:col-span-2 flex items-center gap-3">
-          <button
-            type="submit"
-            disabled={status === "signing" || status === "submitting"}
-            className="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold shadow hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            {status === "signing" || status === "submitting" ? (
-              <Loader2 className="animate-spin" size={16} />
-            ) : (
-              <Send size={16} />
-            )}
-            {status === "signing" ? "Waiting for signature" : status === "submitting" ? "Submitting" : "Send"}
-          </button>
-          {status === "success" && (
-            <span className="text-green-600 flex items-center gap-2 text-sm">
-              <CheckCircle2 size={16} /> Sent! {txId && (
-                <a
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline"
-                  href={`https://explorer.hiro.so/txid/${txId}?chain=testnet`}
-                >
-                  View tx
-                </a>
-              )}
-            </span>
-          )}
-          {status === "error" && (
-            <span className="text-red-600 flex items-center gap-2 text-sm">
-              <AlertCircle size={16} /> {error}
-            </span>
-          )}
-        </div>
-      </form>
+      {/* Voice */}
+      <div className="mb-4 flex items-center gap-3">
+        <button
+          type="button"
+          onClick={startVoice}
+          disabled={isListening}
+          className="bg-pink-600 text-white px-4 py-2 rounded-full flex gap-2"
+        >
+          <Mic size={16} />
+          {isListening ? "Listening…" : "Voice"}
+        </button>
+        {transcript && (
+          <span className="text-xs text-gray-600">“{transcript}”</span>
+        )}
+      </div>
 
-      <p className="text-xs text-gray-500 mt-4">
-        Using contract: <span className="font-mono">{USDC_CONTRACT}</span>
-      </p>
+      <form onSubmit={handleSubmit} className="grid gap-4">
+
+        {/* Address Book */}
+        <div>
+          <h3 className="text-sm font-semibold flex gap-2 mb-2">
+            <Book size={16} /> Address Book
+          </h3>
+
+          <div className="grid md:grid-cols-3 gap-3">
+            <input
+              placeholder="Name"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className="border rounded-xl px-3 py-2 text-sm"
+            />
+            <input
+              placeholder="ST..."
+              value={newAddr}
+              onChange={(e) => setNewAddr(e.target.value)}
+              className="border rounded-xl px-3 py-2 text-sm"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!newName || !isStacksPrincipal(newAddr)) return;
+                saveBook([...book, { name: newName, address: newAddr }]);
+                setNewName("");
+                setNewAddr("");
+              }}
+              className="bg-gray-900 text-white rounded-xl"
+            >
+              Add
+            </button>
+          </div>
+
+          {book.map((b) => (
+            <div
+              key={b.name}
+              className="flex justify-between text-sm mt-2"
+            >
+              <span>
+                <b>{b.name}</b> — {b.address}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRecipient(b.address)}
+                className="text-blue-600"
+              >
+                Use
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <input
+          placeholder="Amount (USDC)"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="border rounded-xl px-3 py-2"
+        />
+
+        <input
+          placeholder="Recipient (ST...)"
+          value={recipient}
+          onChange={(e) => setRecipient(e.target.value)}
+          className="border rounded-xl px-3 py-2"
+        />
+
+        <input
+          placeholder="Memo (optional)"
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          className="border rounded-xl px-3 py-2"
+        />
+
+        <button
+          disabled={status === "signing" || status === "submitting"}
+          className="bg-blue-600 text-white py-2 rounded-xl flex gap-2 justify-center"
+        >
+          {status === "signing" || status === "submitting" ? (
+            <Loader2 className="animate-spin" size={16} />
+          ) : (
+            <Send size={16} />
+          )}
+          Send
+        </button>
+
+        {status === "success" && txId && (
+          <div className="text-green-600 text-sm">
+            Sent!{" "}
+            <a
+              href={`https://explorer.hiro.so/txid/${txId}?chain=testnet`}
+              target="_blank"
+              className="underline"
+            >
+              View tx
+            </a>
+          </div>
+        )}
+
+        {status === "error" && (
+          <div className="text-red-600 text-sm flex gap-2">
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+      </form>
     </div>
   );
 }
