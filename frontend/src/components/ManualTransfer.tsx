@@ -335,7 +335,7 @@ export default function ManualTransfer() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           className="rounded-xl px-3 py-2
-                     bg-background/50 border border-border bg-gray-700 placeholder:text-gray-700
+                     bg-background/50 border border-border bg-gray-700 placeholder:text-gray-300
                      text-foreground placeholder:text-muted-foreground
                      focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
