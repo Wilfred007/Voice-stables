@@ -1,6 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect, useState } from "react";
+import { authenticate, disconnect, getUserAddress } from "@/lib/stacks";
 
 // Dynamically import ManualTransfer, no SSR
 const ManualTransfer = dynamic(() => import("@/components/ManualTransfer"), {
@@ -18,10 +20,20 @@ const Landing = dynamic(() => import("@/components/Landing"), {
 });
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  useEffect(() => {
+    setIsAuthenticated(!!getUserAddress());
+  }, []);
+
   return (
     <main className="min-h-screen bg-background">
       <div className="mx-auto max-w-5xl px-6">
-        <Landing />
+        <Landing
+          authenticate={authenticate}
+          disconnect={disconnect}
+          isAuthenticated={isAuthenticated}
+        />
         <ManualTransfer />
         <Vault />
       </div>
