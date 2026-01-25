@@ -9,6 +9,7 @@ import { sepolia } from "viem/chains";
 /* -------------------------------------------------------------------------- */
 
 const REMOTE_DOMAIN_STACKS = 10003;
+const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7"; // 11155111
 
 const ETH_RPC = process.env.NEXT_PUBLIC_ETH_RPC_URL!;
 const X_RESERVE = process.env.NEXT_PUBLIC_X_RESERVE_CONTRACT;
@@ -83,12 +84,66 @@ export default function BridgeUSDC() {
     []
   );
 
+  /* ------------------------------------------------------------------------ */
+  /*                              WALLET / CHAIN                              */
+  /* ------------------------------------------------------------------------ */
+
+  const ensureSepolia = async () => {
+    const provider = (window as any).ethereum;
+    if (!provider) throw new Error("MetaMask not found");
+
+    const currentHex: string = await provider.request({
+      method: "eth_chainId",
+    });
+
+    if (currentHex?.toLowerCase() === SEPOLIA_CHAIN_ID_HEX) return;
+
+    try {
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+      });
+      return;
+    } catch (err: any) {
+      if (err?.code !== 4902) throw err;
+    }
+
+    // Add Sepolia then switch
+    try {
+      await provider.request({
+        method: "wallet_addEthereumChain",
+        params: [
+          {
+            chainId: SEPOLIA_CHAIN_ID_HEX,
+            chainName: "Sepolia",
+            nativeCurrency: {
+              name: "Sepolia Ether",
+              symbol: "ETH",
+              decimals: 18,
+            },
+            rpcUrls: [ETH_RPC].filter(Boolean),
+            blockExplorerUrls: ["https://sepolia.etherscan.io"],
+          },
+        ],
+      });
+
+      await provider.request({
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+      });
+    } catch {
+      throw new Error("Please switch your wallet to Sepolia and try again.");
+    }
+  };
+
   const getWalletClient = async () => {
     if (!(window as any).ethereum) throw new Error("MetaMask not found");
 
     await (window as any).ethereum.request({
       method: "eth_requestAccounts",
     });
+
+    await ensureSepolia();
 
     return createWalletClient({
       chain: sepolia,
@@ -148,7 +203,7 @@ export default function BridgeUSDC() {
       const wallet = await getWalletClient();
       const [address] = await wallet.getAddresses();
       setAcct(address);
-      setMsg("Connected");
+      setMsg("Connected to Sepolia");
       refresh(address);
     } catch (e: any) {
       setMsg(e.message ?? "Connect failed");
@@ -268,7 +323,7 @@ export default function BridgeUSDC() {
       ) : (
         <>
           <div className="text-xs mb-2">
-            {acct.slice(0, 6)}…{acct.slice(-4)}
+            {acct.slice(0, 6)}…{acct.slice(-4)} (Sepolia)
           </div>
 
           <div className="text-xs mb-3">
