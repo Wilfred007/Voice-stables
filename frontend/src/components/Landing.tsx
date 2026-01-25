@@ -2,7 +2,15 @@
 
 import React, { useEffect, useState } from "react";
 import { authenticate, disconnect, getUserAddress } from "@/lib/stacks";
-import { Wallet, LogOut, ShieldCheck, Mic, Rocket, Waves, ArrowRight } from "lucide-react";
+import {
+  Wallet,
+  LogOut,
+  ShieldCheck,
+  Mic,
+  Rocket,
+  Waves,
+  ArrowRight,
+} from "lucide-react";
 
 export default function Landing() {
   const [address, setAddress] = useState<string | null>(null);
@@ -31,8 +39,7 @@ export default function Landing() {
       <div className="max-w-6xl mx-auto px-6">
         {/* Hero card */}
         <div className="relative rounded-3xl bg-gradient-to-br from-gray-900 via-gray-900/90 to-gray-900/80 text-white p-10 md:p-14 shadow-2xl ring-1 ring-white/10 overflow-hidden">
-          {/* subtle grid */}
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.06),_transparent_40%),linear-gradient(to_right,rgba(255,255,255,0.06)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.06)_1px,transparent_1px)] [background-size:100%_100%,24px_24px,24px_24px] opacity-40" />
+          {/* grid overlay removed to avoid parser issues with complex arbitrary values */}
 
           <div className="relative">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs md:text-sm backdrop-blur animate-fade-in">
@@ -42,8 +49,10 @@ export default function Landing() {
             <h1 className="mt-5 text-4xl md:text-6xl font-extrabold tracking-tight gradient-text animate-fade-in [animation-delay:120ms]">
               Voice Stables
             </h1>
+
             <p className="mt-4 text-white/80 text-base md:text-lg max-w-2xl animate-fade-in [animation-delay:220ms]">
-              Send stablecoins with natural language and bridge funds to a secure on-chain vault. Powered by Stacks smart contracts and a smooth UX.
+              Send stablecoins with natural language and bridge funds to a secure
+              on-chain vault. Powered by Stacks smart contracts and a smooth UX.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-3 animate-fade-in [animation-delay:320ms]">
@@ -83,7 +92,7 @@ export default function Landing() {
           <FeatureCard
             icon={<Mic className="text-pink-400" size={22} />}
             title="Voice intents"
-            desc="Say \"send 10 USDC to Alice memo dinner\". We parse and prepare the transaction for your signature."
+            desc='Say "send 10 USDC to Alice memo dinner". We parse and prepare the transaction for your signature.'
             delay="0ms"
           />
           <FeatureCard
@@ -118,7 +127,7 @@ function FeatureCard({
   return (
     <div
       className="group relative p-6 rounded-2xl border border-white/10 bg-white/5 backdrop-blur hover:bg-white/10 transition-all shadow-lg overflow-hidden"
-      style={{ animation: `fade-in 600ms ease forwards`, animationDelay: delay as any }}
+      style={{ animation: "fade-in 600ms ease forwards", animationDelay: delay }}
     >
       <div className="absolute -top-20 -right-16 h-40 w-40 rounded-full bg-gradient-to-tr from-white/10 to-white/0 blur-2xl group-hover:translate-x-2 group-hover:-translate-y-1 transition-transform" />
       <div className="flex items-center gap-3">
