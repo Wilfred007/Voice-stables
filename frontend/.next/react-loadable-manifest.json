@@ -25,9 +25,7 @@
   },
   "../node_modules/viem/_esm/utils/rpc/webSocket.js -> isows": {
     "id": "../node_modules/viem/_esm/utils/rpc/webSocket.js -> isows",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_isows__esm_native_js.js"
-    ]
+    "files": []
   },
   "../node_modules/viem/_esm/utils/signature/recoverPublicKey.js -> @noble/curves/secp256k1": {
     "id": "../node_modules/viem/_esm/utils/signature/recoverPublicKey.js -> @noble/curves/secp256k1",
@@ -49,18 +47,6 @@
     "id": "app/page.tsx -> @/components/Vault",
     "files": [
       "static/chunks/_app-pages-browser_src_components_Vault_tsx.js"
-    ]
-  },
-  "components/Vault.tsx -> viem": {
-    "id": "components/Vault.tsx -> viem",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_viem__esm_index_js.js"
-    ]
-  },
-  "components/Vault.tsx -> viem/chains": {
-    "id": "components/Vault.tsx -> viem/chains",
-    "files": [
-      "static/chunks/_app-pages-browser_node_modules_viem__esm_chains_index_js.js"
     ]
   }
 }

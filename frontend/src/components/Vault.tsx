@@ -61,7 +61,7 @@ const X_RESERVE_ABI = [
 /*                                 COMPONENT                                  */
 /* -------------------------------------------------------------------------- */
 
-export function BridgeUSDC() {
+export default function BridgeUSDC() {
   const [acct, setAcct] = React.useState<`0x${string}` | null>(null);
   const [ethBal, setEthBal] = React.useState("0");
   const [usdcBal, setUsdcBal] = React.useState("0");
@@ -108,12 +108,11 @@ export function BridgeUSDC() {
 
   const parseUSDC = () => {
     if (!amount) throw new Error("Enter amount");
-    const parts = amount.split(".");
-    if (parts[1]?.length > 6) throw new Error("USDC supports max 6 decimals");
 
-    return BigInt(
-      parts[0] + (parts[1] ?? "").padEnd(6, "0")
-    );
+    const [whole, frac = ""] = amount.split(".");
+    if (frac.length > 6) throw new Error("USDC supports max 6 decimals");
+
+    return BigInt(whole + frac.padEnd(6, "0"));
   };
 
   /* ------------------------------------------------------------------------ */
@@ -173,10 +172,13 @@ export function BridgeUSDC() {
       setBusy(true);
       setMsg("Approving USDC…");
 
+      if (!acct) throw new Error("Connect wallet first");
+
       const wallet = await getWalletClient();
       const value = parseUSDC();
 
       const hash = await wallet.writeContract({
+        account: acct,
         address: ETH_USDC,
         abi: ERC20_ABI,
         functionName: "approve",
@@ -201,10 +203,13 @@ export function BridgeUSDC() {
       if (!/^0x[0-9a-f]{64}$/.test(remoteRecipient32))
         throw new Error("Invalid bytes32 recipient");
 
+      if (!acct) throw new Error("Connect wallet first");
+
       const wallet = await getWalletClient();
       const value = parseUSDC();
 
       const hash = await wallet.writeContract({
+        account: acct,
         address: X_RESERVE,
         abi: X_RESERVE_ABI,
         functionName: "depositToRemote",
