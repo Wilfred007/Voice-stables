@@ -1,7 +1,8 @@
 import { makeRandomPrivKey, getAddressFromPrivateKey, TransactionVersion } from '@stacks/transactions';
 
 const k = makeRandomPrivKey();
-const priv = k.data.toString('hex'); // hex, no 0x
+// Convert Uint8Array -> hex string (no 0x)
+const priv = Buffer.from(k.data).toString('hex');
 const addr = getAddressFromPrivateKey(priv, TransactionVersion.Testnet);
 
 console.log('STX_RELAYER_PRIVKEY=', priv);
