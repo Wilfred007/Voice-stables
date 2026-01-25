@@ -5,7 +5,6 @@ import {
   Send,
   Wallet,
   Loader2,
-  CheckCircle2,
   AlertCircle,
   Mic,
   Book,
@@ -55,9 +54,14 @@ const parseUSDC = (value: string) => {
   return BigInt(whole + frac.padEnd(6, "0"));
 };
 
-const resolveNameOrAddress = (input: string, book: BookEntry[]): string | null => {
+const resolveNameOrAddress = (
+  input: string,
+  book: BookEntry[]
+): string | null => {
   const needle = input.trim().toLowerCase();
-  const found = book.find((b) => b.name.trim().toLowerCase() === needle);
+  const found = book.find(
+    (b) => b.name.trim().toLowerCase() === needle
+  );
   if (found) return found.address;
   if (isStacksPrincipal(input.trim())) return input.trim();
   return null;
@@ -67,6 +71,7 @@ const resolveNameOrAddress = (input: string, book: BookEntry[]): string | null =
 
 export default function ManualTransfer() {
   const [address, setAddress] = useState<string | null>(null);
+
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [memo, setMemo] = useState("");
@@ -131,6 +136,7 @@ export default function ManualTransfer() {
     const SR =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
+
     if (!SR) {
       setStatus("error");
       setError("Speech recognition not supported");
@@ -194,7 +200,7 @@ export default function ManualTransfer() {
         functionName: "transfer",
         functionArgs: [
           uintCV(Number(raw)),
-          noneCV(), // ✅ MUST be noneCV() for SIP-010
+          noneCV(),
           principalCV(resolvedRecipient),
           memoArg,
         ],
@@ -219,18 +225,25 @@ export default function ManualTransfer() {
   /* ---------------------------------- UI ---------------------------------- */
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-white rounded-3xl shadow border">
+    <div className="max-w-2xl mx-auto p-6 rounded-2xl border border-border bg-card/50 backdrop-blur-sm">
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">Send USDC</h2>
+        <h2 className="text-xl font-bold text-foreground">Send USDC</h2>
+
         {!address ? (
           <button
             onClick={authenticate}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-full"
+            className="flex items-center gap-2 rounded-full
+                       bg-foreground text-background px-4 py-2 font-medium
+                       transition-all hover:scale-[1.02]
+                       focus-visible:outline-none focus-visible:ring-2
+                       focus-visible:ring-foreground/50
+                       focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           >
             <Wallet size={16} /> Connect
           </button>
         ) : (
-          <span className="text-sm bg-gray-100 px-3 py-1 rounded-full">
+          <span className="text-sm bg-secondary text-foreground px-3 py-1 rounded-full">
             {address.slice(0, 6)}…{address.slice(-4)}
           </span>
         )}
@@ -242,21 +255,25 @@ export default function ManualTransfer() {
           type="button"
           onClick={startVoice}
           disabled={isListening}
-          className="bg-pink-600 text-white px-4 py-2 rounded-full flex gap-2"
+          className="rounded-full bg-secondary text-foreground px-4 py-2
+                     flex gap-2 items-center transition-colors
+                     hover:bg-muted disabled:opacity-60"
         >
           <Mic size={16} />
           {isListening ? "Listening…" : "Voice"}
         </button>
+
         {transcript && (
-          <span className="text-xs text-gray-600">“{transcript}”</span>
+          <span className="text-xs text-muted-foreground">
+            “{transcript}”
+          </span>
         )}
       </div>
 
       <form onSubmit={handleSubmit} className="grid gap-4">
-
-        {/* Address Book */}
+        {/* Address book */}
         <div>
-          <h3 className="text-sm font-semibold flex gap-2 mb-2">
+          <h3 className="text-sm font-semibold flex gap-2 mb-2 text-foreground">
             <Book size={16} /> Address Book
           </h3>
 
@@ -265,13 +282,19 @@ export default function ManualTransfer() {
               placeholder="Name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="border rounded-xl px-3 py-2 text-sm"
+              className="rounded-xl px-3 py-2 text-sm
+                         bg-background/50 border border-border
+                         text-foreground placeholder:text-muted-foreground
+                         focus:outline-none focus:ring-2 focus:ring-foreground/30"
             />
             <input
               placeholder="ST..."
               value={newAddr}
               onChange={(e) => setNewAddr(e.target.value)}
-              className="border rounded-xl px-3 py-2 text-sm"
+              className="rounded-xl px-3 py-2 text-sm
+                         bg-background/50 border border-border
+                         text-foreground placeholder:text-muted-foreground
+                         focus:outline-none focus:ring-2 focus:ring-foreground/30"
             />
             <button
               type="button"
@@ -281,24 +304,24 @@ export default function ManualTransfer() {
                 setNewName("");
                 setNewAddr("");
               }}
-              className="bg-gray-900 text-white rounded-xl"
+              className="rounded-xl bg-foreground text-background px-4 py-2
+                         font-medium transition-all hover:scale-[1.01]"
             >
               Add
             </button>
           </div>
 
           {book.map((b) => (
-            <div
-              key={b.name}
-              className="flex justify-between text-sm mt-2"
-            >
-              <span>
-                <b>{b.name}</b> — {b.address}
+            <div key={b.name} className="flex justify-between text-sm mt-2">
+              <span className="text-muted-foreground">
+                <span className="font-medium text-foreground">{b.name}</span>{" "}
+                — {b.address}
               </span>
               <button
                 type="button"
                 onClick={() => setRecipient(b.address)}
-                className="text-blue-600"
+                className="text-sm text-muted-foreground
+                           hover:text-foreground underline-offset-4 hover:underline"
               >
                 Use
               </button>
@@ -306,30 +329,45 @@ export default function ManualTransfer() {
           ))}
         </div>
 
+        {/* Inputs */}
         <input
           placeholder="Amount (USDC)"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="border rounded-xl px-3 py-2"
+          className="rounded-xl px-3 py-2
+                     bg-background/50 border border-border
+                     text-foreground placeholder:text-muted-foreground
+                     focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
 
         <input
           placeholder="Recipient (ST...) or name"
           value={recipient}
           onChange={(e) => setRecipient(e.target.value)}
-          className="border rounded-xl px-3 py-2"
+          className="rounded-xl px-3 py-2
+                     bg-background/50 border border-border
+                     text-foreground placeholder:text-muted-foreground
+                     focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
 
         <input
           placeholder="Memo (optional)"
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
-          className="border rounded-xl px-3 py-2"
+          className="rounded-xl px-3 py-2
+                     bg-background/50 border border-border
+                     text-foreground placeholder:text-muted-foreground
+                     focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
 
+        {/* Submit */}
         <button
           disabled={status === "signing" || status === "submitting"}
-          className="bg-blue-600 text-white py-2 rounded-xl flex gap-2 justify-center"
+          className="rounded-xl bg-foreground text-background py-2
+                     flex gap-2 justify-center font-medium transition-all
+                     hover:scale-[1.01] disabled:opacity-60
+                     focus-visible:outline-none focus-visible:ring-2
+                     focus-visible:ring-foreground/40"
         >
           {status === "signing" || status === "submitting" ? (
             <Loader2 className="animate-spin" size={16} />
@@ -339,13 +377,14 @@ export default function ManualTransfer() {
           Send
         </button>
 
+        {/* Status */}
         {status === "success" && txId && (
-          <div className="text-green-600 text-sm">
+          <div className="text-emerald-400 text-sm">
             Sent!{" "}
             <a
               href={`https://explorer.hiro.so/txid/${txId}?chain=testnet`}
               target="_blank"
-              className="underline"
+              className="underline underline-offset-4 hover:text-emerald-300"
             >
               View tx
             </a>
@@ -353,7 +392,7 @@ export default function ManualTransfer() {
         )}
 
         {status === "error" && (
-          <div className="text-red-600 text-sm flex gap-2">
+          <div className="text-red-400 text-sm flex gap-2">
             <AlertCircle size={16} /> {error}
           </div>
         )}
