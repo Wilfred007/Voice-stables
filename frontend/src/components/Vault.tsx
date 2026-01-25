@@ -11,8 +11,8 @@ import { sepolia } from "viem/chains";
 const REMOTE_DOMAIN_STACKS = 10003;
 
 const ETH_RPC = process.env.NEXT_PUBLIC_ETH_RPC_URL!;
-const X_RESERVE = process.env.NEXT_PUBLIC_X_RESERVE_CONTRACT! as `0x${string}`;
-const ETH_USDC = process.env.NEXT_PUBLIC_ETH_USDC_CONTRACT! as `0x${string}`;
+const X_RESERVE = process.env.NEXT_PUBLIC_X_RESERVE_CONTRACT;
+const ETH_USDC = process.env.NEXT_PUBLIC_ETH_USDC_CONTRACT;
 const DEFAULT_REMOTE_RECIPIENT_ETH =
   process.env.NEXT_PUBLIC_REMOTE_RECIPIENT_ETH;
 
@@ -106,6 +106,15 @@ export default function BridgeUSDC() {
     return ("0x" + "0".repeat(24) + m[1]).toLowerCase();
   }, []);
 
+  const assertAddress = (
+    label: string,
+    addr: any
+  ): asserts addr is `0x${string}` => {
+    if (typeof addr !== "string" || !/^0x[0-9a-fA-F]{40}$/.test(addr)) {
+      throw new Error(`${label} is not set or invalid`);
+    }
+  };
+
   const parseUSDC = () => {
     if (!amount) throw new Error("Enter amount");
 
@@ -150,6 +159,8 @@ export default function BridgeUSDC() {
     if (!address) return;
 
     try {
+      assertAddress("NEXT_PUBLIC_ETH_USDC_CONTRACT", ETH_USDC);
+
       const [wei, usdc] = await Promise.all([
         publicClient.getBalance({ address }),
         publicClient.readContract({
@@ -173,6 +184,8 @@ export default function BridgeUSDC() {
       setMsg("Approving USDC…");
 
       if (!acct) throw new Error("Connect wallet first");
+      assertAddress("NEXT_PUBLIC_X_RESERVE_CONTRACT", X_RESERVE);
+      assertAddress("NEXT_PUBLIC_ETH_USDC_CONTRACT", ETH_USDC);
 
       const wallet = await getWalletClient();
       const value = parseUSDC();
@@ -204,6 +217,8 @@ export default function BridgeUSDC() {
         throw new Error("Invalid bytes32 recipient");
 
       if (!acct) throw new Error("Connect wallet first");
+      assertAddress("NEXT_PUBLIC_X_RESERVE_CONTRACT", X_RESERVE);
+      assertAddress("NEXT_PUBLIC_ETH_USDC_CONTRACT", ETH_USDC);
 
       const wallet = await getWalletClient();
       const value = parseUSDC();
