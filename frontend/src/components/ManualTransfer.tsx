@@ -335,27 +335,28 @@ export default function ManualTransfer() {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           className="rounded-xl px-3 py-2
-                     bg-background/50 border border-border
+                     bg-background/50 border border-border bg-gray-700 placeholder:text-gray-700
                      text-foreground placeholder:text-muted-foreground
                      focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
 
-        <input
-          placeholder="Recipient (ST...) or name"
-          value={recipient}
-          onChange={(e) => setRecipient(e.target.value)}
-          className="rounded-xl px-3 py-2
-                     bg-background/50 border border-border
-                     text-foreground placeholder:text-muted-foreground
-                     focus:outline-none focus:ring-2 focus:ring-foreground/30"
-        />
+<input
+  placeholder="Recipient (ST...) or name"
+  value={recipient}
+  onChange={(e) => setRecipient(e.target.value)}
+  className="rounded-xl px-3 py-2
+             bg-gray-700 border border-gray-600
+             text-white placeholder:text-gray-400
+             focus:outline-none focus:ring-2 focus:ring-gray-500"
+/>
+
 
         <input
           placeholder="Memo (optional)"
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
           className="rounded-xl px-3 py-2
-                     bg-background/50 border border-border
+                     bg-background/50 border border-border bg-gray-700 placeholder:text-gray-300
                      text-foreground placeholder:text-muted-foreground
                      focus:outline-none focus:ring-2 focus:ring-foreground/30"
         />
